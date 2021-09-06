@@ -1,11 +1,12 @@
 ///-----------------------------------------------///
-///	Example program for setting up a hardware     ///
-/// path for camera/video over v4l2 to Open GL    ///
-/// texture.						 		  	  ///
+/// Example program for setting up a hardware     ///
+/// path for hevc and h264 over v4l2 to           ///
+/// OpenGL texture.                               ///
 ///-----------------------------------------------///
 //
 // sudo apt install libglfw3-dev
 // This needs a new Mesa probably higher than v21.
+// And it needs rpi-ffmpeg.
 
 #define GLFW_INCLUDE_ES2
 #include <GLFW/glfw3.h>
@@ -20,7 +21,7 @@
 
 #include "glhelp.h"
 
-// video file decode
+/// video file decode
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/pixdesc.h>
@@ -34,6 +35,24 @@
 static AVBufferRef *hw_device_ctx = NULL;
 static enum AVPixelFormat hw_pix_fmt;
 static FILE *output_file = NULL;
+
+static EGLint texgen_attrs[] = {
+   EGL_DMA_BUF_PLANE0_FD_EXT,
+   EGL_DMA_BUF_PLANE0_OFFSET_EXT,
+   EGL_DMA_BUF_PLANE0_PITCH_EXT,
+   EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT,
+   EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT,
+   EGL_DMA_BUF_PLANE1_FD_EXT,
+   EGL_DMA_BUF_PLANE1_OFFSET_EXT,
+   EGL_DMA_BUF_PLANE1_PITCH_EXT,
+   EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT,
+   EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT,
+   EGL_DMA_BUF_PLANE2_FD_EXT,
+   EGL_DMA_BUF_PLANE2_OFFSET_EXT,
+   EGL_DMA_BUF_PLANE2_PITCH_EXT,
+   EGL_DMA_BUF_PLANE2_MODIFIER_LO_EXT,
+   EGL_DMA_BUF_PLANE2_MODIFIER_HI_EXT,
+};
 
 typedef struct egl_aux_s {
     int fd;
@@ -69,12 +88,10 @@ static enum AVPixelFormat get_hw_format(AVCodecContext *ctx,
     return AV_PIX_FMT_NONE;
 }
 
-static int decode_write2(egl_aux_t *da_out, EGLDisplay *egl_display, egl_aux_t * const fd_tex, AVCodecContext * const avctx, AVPacket *packet)
+// This function is in the main loop.
+static int decode_write(egl_aux_t *da_out, EGLDisplay *egl_display, AVCodecContext * const avctx, AVPacket *packet)
 {
     AVFrame *frame = NULL, *sw_frame = NULL;
-    AVFrame *tmp_frame = NULL;
-    uint8_t *buffer = NULL;
-    int size;
     int ret = 0;
 
     ret = avcodec_send_packet(avctx, packet);
@@ -82,7 +99,7 @@ static int decode_write2(egl_aux_t *da_out, EGLDisplay *egl_display, egl_aux_t *
         fprintf(stderr, "Error during decoding\n");
         return ret;
     }
-
+    
     while (1) {
 	
         if (!(frame = av_frame_alloc()) || !(sw_frame = av_frame_alloc())) {
@@ -93,64 +110,23 @@ static int decode_write2(egl_aux_t *da_out, EGLDisplay *egl_display, egl_aux_t *
 
         ret = avcodec_receive_frame(avctx, frame);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-	    //printf("receive frame EAGAIN\n");  //prints this. its normal
-	    // "you should call send with the next encoded frame, then call receive again."
             av_frame_free(&frame);
             av_frame_free(&sw_frame);
-            return 0;
+            return 0; /// goes sends/gets another packet.
         } else if (ret < 0) {
             fprintf(stderr, "Error while decoding\n");
             goto fail;
         }
 
-
-	// I need to get the fd!
-	//printf("original end\n");
-	// THE END REALLY
-	
-	// fd_tex[32] incoming
 	const AVDRMFrameDescriptor *desc = (AVDRMFrameDescriptor*)frame->data[0];
-	egl_aux_t* da = malloc(sizeof *da);
-	da->fd = -1;
-	da->texture = 0;
-	
-	unsigned int i;
-	
-	for (i = 0; i != 32; ++i) {
-	    if (fd_tex[i].fd == -1 || fd_tex[i].fd == desc->objects[0].fd) {
-		da = fd_tex + i; // DID I DO CORRECT?
-		break;
-	    }
-	    printf("Doing fd[%d]\n", i);
-	}
-	if (da == NULL) {
-	    //av_log(s, AV_LOG_INFO, "%s: Out of handles\n", __func__);
-	    printf("Out of fd handles.\n");
-	    return AVERROR(EINVAL);
-	}
-	
-	if (da->texture == 0) {
-        EGLint attribs[50];
+	da_out->fd = desc->objects[0].fd;
+
+	/// runs every frame 
+	if (da_out->texture == 0) {
+
+	EGLint attribs[50];
         EGLint * a = attribs;
-        int i, j;
-        static const EGLint anames[] = {
-           EGL_DMA_BUF_PLANE0_FD_EXT,
-           EGL_DMA_BUF_PLANE0_OFFSET_EXT,
-           EGL_DMA_BUF_PLANE0_PITCH_EXT,
-           EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT,
-           EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT,
-           EGL_DMA_BUF_PLANE1_FD_EXT,
-           EGL_DMA_BUF_PLANE1_OFFSET_EXT,
-           EGL_DMA_BUF_PLANE1_PITCH_EXT,
-           EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT,
-           EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT,
-           EGL_DMA_BUF_PLANE2_FD_EXT,
-           EGL_DMA_BUF_PLANE2_OFFSET_EXT,
-           EGL_DMA_BUF_PLANE2_PITCH_EXT,
-           EGL_DMA_BUF_PLANE2_MODIFIER_LO_EXT,
-           EGL_DMA_BUF_PLANE2_MODIFIER_HI_EXT,
-        };
-        const EGLint * b = anames;
+        const EGLint * b = texgen_attrs;
 
         *a++ = EGL_WIDTH;
         *a++ = av_frame_cropped_width(frame);
@@ -158,8 +134,9 @@ static int decode_write2(egl_aux_t *da_out, EGLDisplay *egl_display, egl_aux_t *
         *a++ = av_frame_cropped_height(frame);
         *a++ = EGL_LINUX_DRM_FOURCC_EXT;
         *a++ = desc->layers[0].format;
-
-        for (i = 0; i < desc->nb_layers; ++i) {
+	
+	int i, j;
+	for (i = 0; i < desc->nb_layers; ++i) {
             for (j = 0; j < desc->layers[i].nb_planes; ++j) {
                 const AVDRMPlaneDescriptor * const p = desc->layers[i].planes + j;
                 const AVDRMObjectDescriptor * const obj = desc->objects + p->object_index;
@@ -182,70 +159,31 @@ static int decode_write2(egl_aux_t *da_out, EGLDisplay *egl_display, egl_aux_t *
         }
 
         *a = EGL_NONE;
-	
-	{
-           const EGLImage image = eglCreateImageKHR(*egl_display,
+
+	const EGLImage image = eglCreateImageKHR(*egl_display,
                                               EGL_NO_CONTEXT,
                                               EGL_LINUX_DMA_BUF_EXT,
                                               NULL, attribs);
-           if (!image) {
-              printf("Failed to create EGLImage\n");
-              return -1;
-           }
-	    
-	    /// my
-	//~ GLuint dma_texture;
-	//~ glGenTextures(1, dma_texture);
-	//~ glEnable(GL_TEXTURE_EXTERNAL_OES);
-	//~ glBindTexture(GL_TEXTURE_EXTERNAL_OES, dma_texture);
-	//~ glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	//~ glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	//~ glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, dma_image);
-	//~ glGetUniformLocation(shader_program, "texture");
-	    
-	    
-	    
-	    
+	if (!image) {
+		printf("Failed to create EGLImage\n");
+		return -1;
+	}
+
 	    /// his
-           glGenTextures(1, &da->texture);
+           glGenTextures(1, &da_out->texture);
 	   glEnable(GL_TEXTURE_EXTERNAL_OES);
-           glBindTexture(GL_TEXTURE_EXTERNAL_OES, da->texture);
+           glBindTexture(GL_TEXTURE_EXTERNAL_OES, da_out->texture);
            glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
            glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
            glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, image);
 	   
            eglDestroyImageKHR(*egl_display, image);
-        }
-	
-	
-	da->fd = desc->objects[0].fd;
-	//printf("Fd generated: %d\n", da->fd); //loops over the 32
-	//printf("Texture generated: %d\n", da->texture); // cont increases 1 per frame
-	
-	// this was my error!! I 'copied' over the pointer not the values.
-	da_out->fd = da->fd;
-	da_out->texture = da->texture;
 	}
 	
-	
-    
-
-    
-    //ORIG draw (not mine)
-    //glClearColor(0.5, 0.5, 0.5, 0.5);
-    //glClear(GL_COLOR_BUFFER_BIT);
-
-    //glBindTexture(GL_TEXTURE_EXTERNAL_OES, da->texture);
-    //~ glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-    //~ eglSwapBuffers(de->setup.egl_dpy, de->setup.surf);
-
-    //~ glDeleteTextures(1, &da->texture);
-    //da->texture = 0;
-    //da->fd = -1;
-	
-	
-	////////////////   DEBUG  ////////////////////////////////////////////////////
-#if 0
+	///-------------   DEBUG  -----------------------------------------------
+	uint8_t *buffer = NULL;
+	int size=-1;
+#if 0	
         if (frame->format == hw_pix_fmt) {
             /* retrieve data from GPU to CPU */
             if ((ret = av_hwframe_transfer_data(sw_frame, frame, 0)) < 0) {
@@ -260,7 +198,7 @@ static int decode_write2(egl_aux_t *da_out, EGLDisplay *egl_display, egl_aux_t *
                                         tmp_frame->height, 1);
 					
 	printf("Buffer size: %d\n", size);
-					
+		
         buffer = av_malloc(size);
         if (!buffer) {
             fprintf(stderr, "Can not alloc buffer\n");
@@ -281,6 +219,9 @@ static int decode_write2(egl_aux_t *da_out, EGLDisplay *egl_display, egl_aux_t *
             goto fail;
         }
 #endif
+	///-------------   END debug  ------------------------------------------
+
+
 
     fail:
         av_frame_free(&frame);
@@ -431,11 +372,7 @@ int main(int argc, char *argv[]) {
     AVCodec *decoder = NULL;
     AVPacket packet;
     enum AVHWDeviceType type;
-    int i;
-
-    //fred
-    egl_aux_t *fd_tex[32];
-    
+    int i;  
 
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <input file> \n", argv[0]);
@@ -445,7 +382,7 @@ int main(int argc, char *argv[]) {
     type = av_hwdevice_find_type_by_name("drm");
     
     if (type == AV_HWDEVICE_TYPE_NONE) {
-        fprintf(stderr, "Device type drm is not supported.\n");
+        fprintf(stderr, "Device type is not supported.\n");
         fprintf(stderr, "Available device types:");
         while((type = av_hwdevice_iterate_types(type)) != AV_HWDEVICE_TYPE_NONE)
             fprintf(stderr, " %s", av_hwdevice_get_type_name(type));
@@ -454,7 +391,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    /* open the input file */
+    /// open the input file
     if (avformat_open_input(&input_ctx, argv[1], NULL, NULL) != 0) {
         fprintf(stderr, "Cannot open input file '%s'\n", argv[2]);
         return -1;
@@ -465,29 +402,13 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    /* find the video stream information */
+    /// find the video stream information */
     ret = av_find_best_stream(input_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &softwareDecoder, 0);
     if (ret < 0) {
         fprintf(stderr, "Cannot find a video stream in the input file\n");
         return -1;
     }
     video_stream = ret;
-
-
-    //~ for (i = 0;; i++) {
-        //~ const AVCodecHWConfig *config = avcodec_get_hw_config(decoder, i);
-        //~ if (!config) {
-            //~ fprintf(stderr, "Decoder %s does not support device type %s.\n",
-                    //~ decoder->name, av_hwdevice_get_type_name(type));
-            //~ return -1;
-        //~ }
-        //~ if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX &&
-            //~ config->device_type == type) {
-            //~ hw_pix_fmt = config->pix_fmt;
-            //~ break;
-        //~ }
-    //~ }
-    
     
     if(softwareDecoder -> id == AV_CODEC_ID_H264) {
         decoder = avcodec_find_decoder_by_name("h264_v4l2m2m");
@@ -502,7 +423,7 @@ int main(int argc, char *argv[]) {
 		return -1;
     }
 	
-    /// Pixel format must be AV_PIX_FMT_DRM_PRIME!
+    /// Pixel format must be AV_PIX_FMT_DRM_PRIME!  (DRM DMA buffers)
     hw_pix_fmt = AV_PIX_FMT_DRM_PRIME;
 
     if (!(decoder_ctx = avcodec_alloc_context3(decoder)))
@@ -524,50 +445,40 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Failed to open codec for stream #%u\n", video_stream);
         return -1;
     }
-		
-		
 
-    /// actual decoding and dump the raw data
-    /// this should be in OUR main loop.
+
+	/// --- MAIN Loop ------------------------------------------------------ 
+
     egl_aux_t* da = malloc(sizeof *da);
     da->fd=-1;
     da->texture=0;
-	
+    	
     while (ret>=0 && !glfwWindowShouldClose(window)) {
 	
-	glfwPollEvents();  /// for window closing
+	glfwPollEvents();  /// for mouse window closing
 	
         if ((ret = av_read_frame(input_ctx, &packet)) < 0) {
-	    printf("reading a packet...\n");
+	    printf("fail reading a packet...\n");
             break;
 	}
 
         if (video_stream == packet.stream_index) {
 	    
-            ret = decode_write2(da, &egl_display, fd_tex, decoder_ctx, &packet);
+            ret = decode_write(da, &egl_display, decoder_ctx, &packet);
 	    
-	    if(da->fd > -1 && da->texture > 0) {
+	    if(da->fd > -1 && da->texture >= 0) {
 		
-		//printf("Fd: %d	Texture: %d\n", da->fd, da->texture); // seg fault
+		///printf("Fd: %d	Texture: %d\n", da->fd, da->texture);
 		
-		//update texture?
-		glBindTexture(GL_TEXTURE_EXTERNAL_OES, da->texture);
-		
-		//draw in window
-		//glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);//"u_blitter:600: Caught recursion. This is a driver bug."
-		glClearColor(0.0, 0.0, 0.0, 0.0);
+		///glBindTexture(GL_TEXTURE_EXTERNAL_OES, da->texture);
+		///glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);  //"u_blitter:600: Caught recursion. This is a driver bug."
+		glClearColor(0.0, 0.0, 0.0, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT);
 		glUseProgram(shader_program);
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		glfwSwapBuffers(window);	
 		
-		//glClearColor(0.5, 0.5, 0.5, 0.5);
-		//glClear(GL_COLOR_BUFFER_BIT);
-		//glBindTexture(GL_TEXTURE_EXTERNAL_OES, da->texture);
-		//~ glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-		//~ eglSwapBuffers(de->setup.egl_dpy, de->setup.surf);
-		
-		//flush
+		/// flush
 		glDeleteTextures(1, &da->texture);
 		da->texture = 0;
 		da->fd = -1;
@@ -578,72 +489,9 @@ int main(int argc, char *argv[]) {
 
 	av_packet_unref(&packet);
     }
-	
-	
+
 	printf("END avcodec test\n");
 	glDeleteBuffers(1, &vbo);
 	glfwTerminate();
-	return -1;
-	
-
-	/// END avcodec ------------------------------------------------
-	/// BEGIN create DMA texture ---------------------------------------
-
-	//EGLImageKHR dma_image;
-	//~ dma_image = eglCreateImageKHR(	  
-					//~ egl_display,
-					//~ EGL_NO_CONTEXT,
-					//~ EGL_LINUX_DMA_BUF_EXT,
-					//~ NULL,
-					//~ (EGLint[])
-					//~ {
-						//~ EGL_WIDTH, fmt.fmt.pix.width,
-						//~ EGL_HEIGHT, fmt.fmt.pix.height,
-						//~ EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_XRGB8888,  /// takes 16 or 32 bits per pixel (or 8 probably)
-						//~ EGL_DMA_BUF_PLANE0_FD_EXT, expBuf_fd,
-						//~ EGL_DMA_BUF_PLANE0_OFFSET_EXT, 0,
-						//~ EGL_DMA_BUF_PLANE0_PITCH_EXT, fmt.fmt.pix.bytesperline,
-						//~ EGL_NONE
-					//~ });
-
-
-	//~ if(dma_image == EGL_NO_IMAGE_KHR)
-	//~ {
-		//~ printf("error: eglCreateImageKHR failed\n");
-		//~ //return -1;
-	//~ }
-
-
-	//~ GLuint dma_texture;
-	//~ glGenTextures(1, dma_texture);
-	//~ glEnable(GL_TEXTURE_EXTERNAL_OES);
-	//~ glBindTexture(GL_TEXTURE_EXTERNAL_OES, dma_texture);
-	//~ glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	//~ glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	//~ glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, dma_image);
-	//~ glGetUniformLocation(shader_program, "texture");
-
-	/// END create DMA texture ---------------------------------------
-	
-
-	/// Main Program Loop
-	//  USES A LOT OF CPU EVEN WITH NO VIDEO.
-	//while(!glfwWindowShouldClose(window))
-	while(0)
-	{
-		glfwPollEvents();
-		
-		//~ ioctl(fd, VIDIOC_DQBUF, &buf);
-			//~ glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, dma_image);
-		//~ ioctl(fd, VIDIOC_QBUF, &buf);
-				
-		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-		glUseProgram(shader_program);
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-		glfwSwapBuffers(window);
-	}
-
-	//~ glDeleteBuffers(1, &vbo);
-	//~ glfwTerminate();
-	//~ return EXIT_SUCCESS;
+	return 0;
 }

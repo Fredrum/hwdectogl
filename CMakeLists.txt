@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.2)
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake;/usr/local")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR};/usr/local")
 
 project(hwdectogl)
 
@@ -53,7 +53,7 @@ else()
 endif()
 
 
-message("${AVCODEC_LDFLAGS}")
+#message("${AVCODEC_LDFLAGS}")
 
 include_directories(
 	include
