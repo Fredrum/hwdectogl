@@ -99,3 +99,15 @@ OpenGL shading language version string: 1.20
 
 OpenGL ES profile version string: OpenGL ES 3.1 Mesa 21.3.0-devel (git-c679dbe09c)
 OpenGL ES profile shading language version string: OpenGL ES GLSL ES 3.10
+
+
+Or...
+/usr/lib and /usr/lib64 are not symlinked on Fedora, so naturally, libGL can't find iris in /usr/lib/dri because it's in /usr/lib64/dri by default. You may want to add the path to IRIS into /etc/ld.so.conf and then run ldconfig.
+
+/usr/lib/dri/swrast_dri.so
+
+FOUND IN:
+/usr/lib/aarch64-linux-gnu/dri/swrast_dri.so
+
+
+
