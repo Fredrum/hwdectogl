@@ -1,3 +1,12 @@
+
+Ubuntu 64bit setup
+Get Ubunto 21.04 64bit Server  (I had boot crashes with Desktop)
+sudo apt install lubuntu-desktop
+Kernel is Linux ubuntu 5.11.0-1007-raspi
+Mesa is 21.0.1
+ffmpeg build works!
+
+
 FFMPEG build:
 
 
