@@ -11,7 +11,7 @@ sudo nano /boot/firmware/config.txt  with:
 dtoverlay=rpivid-v4l2
 reboot
 Trying: sudo apt install lightdm
-
+change with sudo dpkg-reconfigure gdm3   or   sudo dpkg-reconfigure lightdm
 
 FFMPEG build:
 
