@@ -42,8 +42,10 @@ and
 and
 ./ffmpeg -no_cvt_hw -hwaccel drm -vcodec hevc -i ~/Videos/jellyfish-40-mbps-hd-hevc.mkv -f vout_egl /dev/null
 
-
-
+64bit:
+ffmpeg error:  Unable to open either /dev/dma_heap/linux,cma or /dev/dma_heap/reserved
+crw------- 1 root root 249, 1 Apr 21 23:27 linux,cma
+crw------- 1 root root 249, 0 Apr 21 23:27 system
 
 
 
