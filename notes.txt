@@ -12,7 +12,11 @@ dtoverlay=rpivid-v4l2
 dtoverlay=vc4-kms-v3d-pi4
 reboot
 Trying: sudo apt install lightdm
-change with sudo dpkg-reconfigure gdm3   or   sudo dpkg-reconfigure lightdm
+Works with 'OPENBOX' + full kms
+
+(change again with sudo dpkg-reconfigure gdm3   or   sudo dpkg-reconfigure lightdm)
+
+
 
 FFMPEG build:
 
