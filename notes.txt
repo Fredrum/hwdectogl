@@ -10,7 +10,7 @@ Remove some arch tags from CMakeLists -mfpu=neon
 sudo nano /boot/firmware/config.txt  with:
 dtoverlay=rpivid-v4l2
 reboot
-
+Trying: sudo apt install lightdm
 
 
 FFMPEG build:
