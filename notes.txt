@@ -5,7 +5,7 @@ sudo apt install lubuntu-desktop
 Trying: sudo apt install lightdm
 Works with 'OPENBOX' + full kms
 Kernel is Linux ubuntu 5.11.0-1007-raspi
-Mesa is 21.0.1
+Mesa is 21.0.1 by default but need higher. Build+install HoT
 ffmpeg build works!
 sudo apt install build-essential    needed as cmake can't find gcc
 Remove some arch tags from CMakeLists -mfpu=neon
