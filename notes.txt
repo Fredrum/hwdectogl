@@ -1,7 +1,7 @@
 
 Ubuntu 64bit setup
 Get Ubunto 21.04 64bit Server  (I had boot crashes with Desktop)
-sudo apt install lubuntu-desktop
+sudo apt install lubuntu-desktop - lets try not using gdm3, lightdm seems better. gdm3 software rendered?
 Trying: sudo apt install lightdm
 Works with 'OPENBOX' + full kms
 Kernel is Linux ubuntu 5.11.0-1007-raspi
@@ -13,9 +13,11 @@ sudo nano /boot/firmware/config.txt  with:
 dtoverlay=rpivid-v4l2
 dtoverlay=vc4-kms-v3d-pi4
 reboot
+Need to add rw permissions to some drm device files or won't work. (gets reset on reboot)
 
-Need to add rw permissions to some drm device files or won't work.
 (change again with sudo dpkg-reconfigure gdm3   or   sudo dpkg-reconfigure lightdm)
+To check which display manager is currently being used, run this command:
+cat /etc/X11/default-display-manager
 
 
 
