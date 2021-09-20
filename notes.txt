@@ -1,7 +1,7 @@
 
 Ubuntu 64bit setup
 Get Ubunto 21.04 64bit Server  (I had boot crashes with Desktop)
-sudo apt install lubuntu-desktop - lets try not using gdm3, lightdm seems better. gdm3 software rendered?
+sudo apt install lubuntu-desktop - lets try not using gdm3, lightdm seems better. SDDM is a new one worth a try?
 Trying: sudo apt install lightdm
 Works with 'OPENBOX' + full kms
 Kernel is Linux ubuntu 5.11.0-1007-raspi
