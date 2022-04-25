@@ -33,6 +33,11 @@ sudo apt install libudev-dev
 sudo apt install libglfw3-dev libgles2-mesa-dev
 sudo apt install libsdl2-dev
 
+NEW:
+export CPPFLAGS="-I/usr/include/libdrm"
+./configure
+
+OLD:
 pi-util/conf_native.sh --noshared   NOTE should change the --prefix path to somethings like /usr, also try w/o noshared
 (look for out device vout_egl)
 cd out/armv7-buster-static-rel
